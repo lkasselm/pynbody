@@ -725,11 +725,11 @@ class GadgetHDFSnap(SimSnap):
 
         if 'a' in self.properties:
             self.properties['z'] = (1. / self.properties['a']) - 1
-
-
         # time unit might not be set in the attributes
         if "Time_GYR" in atr:
             self.properties['time'] = units.Gyr * atr['Time_GYR']
+        elif "Time" in atr:
+            self.properties['time'] = units.Gyr * atr['Time']
         else:
             from .. import analysis
             self.properties['time'] = analysis.cosmology.age(self) * units.Gyr

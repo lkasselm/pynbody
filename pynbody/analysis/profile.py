@@ -636,7 +636,6 @@ def density_enc(self):
     """
     return self['mass_enc'] / ((4. * math.pi / 3) * self['rbins'] ** 3)
 
-
 @Profile.profile_property
 def dyntime(self):
     """The dynamical time of the bin, sqrt(R^3/2GM)."""
