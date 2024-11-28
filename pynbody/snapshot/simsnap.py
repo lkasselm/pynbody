@@ -233,6 +233,15 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
     # THE BASICS: GETTING AND SETTING
     ############################################
 
+    def _ipython_key_completions_(self):
+        """Adds ipython autocomplete"""
+        if not hasattr(self, "_auto_keys") or self._auto_keys is None:
+            """Seems smoother if precalculated.
+            Could extend, modify for unifamily arrayrs ect..."""
+            self._auto_keys = self.all_keys()
+        return self._auto_keys
+
+
     def __getitem__(self, i) -> array.SimArray | subsnap.SubSnapBase :
         """Return either a specific array or a subview of this simulation. See
         the class documentation (:class:`SimSnap`) for more information."""
@@ -901,11 +910,14 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                     if not units.has_units(anc[v]):
                         anc[v].units = anc._default_units_for(v)
                     anc._autoconvert_array_unit(anc[v])
+                    anc.apply_transformation_to_array(v)
                 for f, vals in new_fam_keys.items():
                     for v in vals:
                         if not units.has_units(anc[f][v]):
                             anc[f][v].units = anc._default_units_for(v)
                         anc._autoconvert_array_unit(anc[f][v])
+                        anc.apply_transformation_to_array(v, f)
+
 
 
 
@@ -1142,21 +1154,27 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
         # Determine what families already have an array of this name
         fams = []
-        dtx = None
+        previous_dtype = None
         try:
             fams = list(self._family_arrays[array_name].keys())
-            dtx = self._family_arrays[array_name][fams[0]].dtype
+            previous_dtype = self._family_arrays[array_name][fams[0]].dtype
         except KeyError:
             pass
 
         fams.append(family)
 
-        if dtype is not None and dtx is not None and dtype != dtx:
+        if dtype is not None and previous_dtype is not None and np.dtype(dtype).kind != np.dtype(previous_dtype).kind:
 
-            # We insist on the data types being the same for, e.g. sim.gas['my_prop'] and sim.star['my_prop']
+            # We insist on the data types being the same kind for, e.g. sim.gas['my_prop'] and sim.star['my_prop']
             # This makes promotion to simulation-level arrays possible.
-            raise ValueError("Requested data type {!r} is not consistent with existing data type {!r} for family array {!r}".format(
-                str(dtype), str(dtx), array_name))
+            #
+            # Note that previously we disallowed even different dtypes of the same kind (e.g. float32 vs float64) but
+            # this generated issues where behaviour dependeded on arbitrary order of user operations, (see tests
+            # simsnap_test.py:test_float32_float64_compatibility).
+
+            raise ValueError("Requested data type {dtype} is not consistent with existing data type {previous_dtype} for family array {array_name}")
+
+
 
         if all([x in fams for x in self_families]):
             # If, once we created this array, *all* families would have
@@ -1508,7 +1526,26 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
 
 
-    def _find_deriving_function(self, name):
+    def find_deriving_function(self, name):
+        """Return the function that derives the named array, or None if no such function is registered.
+
+        This searches the registry of @X.derived_array functions for all X in the inheritance path of the current class.
+
+        .. versionadded:: 2.0
+
+
+        Parameters
+        ----------
+
+        name : str
+            The name of the array to derive.
+
+        Returns
+        -------
+
+        function or None
+            The function that derives the named array, or None if no such function is registered.
+        """
         for cl in type(self).__mro__:
             if cl in self._derived_array_registry \
                     and name in self._derived_array_registry[cl]:
@@ -1526,7 +1563,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         global config
 
         calculated = False
-        fn = self._find_deriving_function(name)
+        fn = self.find_deriving_function(name)
         if fn:
             logger.info("Deriving array %s" % name)
             with self.auto_propagate_off:
@@ -1778,12 +1815,14 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         from .copy_on_access import CopyOnAccessSimSnap
         return CopyOnAccessSimSnap(self)
 
-SimSnap.stable_derived_quantity = util.deprecated(SimSnap.stable_derived_array,
-                                              "stable_derived_quantity has been renamed to stable_derived_array")
+    @classmethod
+    @util.deprecated("stable_derived_quantity has been renamed to stable_derived_array")
+    def stable_derived_quantity(cls, fn):
+        """Deprecated alias for :meth:`stable_derived_array`"""
+        return cls.stable_derived_array(fn)
 
-SimSnap.stable_derived_quantity.__doc__ = "Deprecated alias for :meth:`stable_derived_array`"
-
-SimSnap.derived_quantity = util.deprecated(SimSnap.derived_array,
-                                           "derived_quantity has been renamed to derived_array")
-
-SimSnap.derived_quantity.__doc__ = "Deprecated alias for :meth:`derived_array`"
+    @classmethod
+    @util.deprecated("derived_quantity has been renamed to derived_array")
+    def derived_quantity(cls, fn):
+        """Deprecated alias for :meth:`derived_array`"""
+        return cls.derived_array(fn)

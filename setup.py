@@ -103,7 +103,7 @@ chunkscan = Extension('pynbody.chunk.scan',
                   include_dirs=incdir)
 
 sph_render = Extension('pynbody.sph._render',
-                  sources=['pynbody/sph/_render.pyx'],
+                  sources=['pynbody/sph/_render.pyx', 'pynbody/sph/healpix.c'],
                   include_dirs=incdir)
 
 halo_pyx = Extension('pynbody.analysis._com',
@@ -117,7 +117,7 @@ bridge_pyx = Extension('pynbody.bridge._bridge',
                      include_dirs=incdir)
 
 util_pyx = Extension('pynbody.util._util',
-                     sources=['pynbody/util/_util.pyx'],
+                     sources=['pynbody/util/_util.pyx', 'pynbody/sph/healpix.c'],
                      include_dirs=incdir,
                      extra_compile_args=openmp_args,
                      extra_link_args=extra_link_args)
@@ -134,15 +134,8 @@ cython_fortran_file = Extension('pynbody.extern._cython_fortran_utils',
                                 include_dirs=incdir)
 
 
-interpolate3d_pyx = Extension('pynbody.analysis._interpolate3d',
-                              sources = ['pynbody/analysis/_interpolate3d.pyx'],
-                              include_dirs=incdir,
-                              extra_compile_args=openmp_args,
-                              extra_link_args=openmp_args)
-
-
 ext_modules += [gravity, chunkscan, sph_render, halo_pyx, bridge_pyx, util_pyx, filt_geom_pyx,
-                cython_fortran_file, interpolate3d_pyx, omp_commands]
+                cython_fortran_file, omp_commands]
 
 install_requires = [
     'cython>=0.20',
@@ -154,7 +147,7 @@ install_requires = [
 ]
 
 tests_require = [
-    'pytest','pandas','camb','extinction'
+    'pytest','pandas','camb','extinction',"IPython",'healpy'
 ]
 
 docs_require = [
@@ -187,7 +180,7 @@ setup(name = 'pynbody',
       author = 'The pynbody team',
       author_email = 'pynbody@googlegroups.com',
       version = get_version("pynbody/__init__.py"),
-      description = 'Light-weight astronomical N-body/SPH analysis for python',
+      description = 'Astronomical N-body/SPH analysis for python',
       url = 'https://github.com/pynbody/pynbody/releases',
       package_dir = {'pynbody/': ''},
       packages = ['pynbody', 'pynbody/analysis', 'pynbody/array',

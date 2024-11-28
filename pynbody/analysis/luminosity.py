@@ -71,11 +71,11 @@ import os
 import warnings
 
 import numpy as np
+from scipy.interpolate import RegularGridInterpolator
 
 import pynbody
 
 from .. import filt, snapshot, units, util
-from .interpolate import interpolate2d
 
 _ssp_table = None
 _default_ssp_file = [os.path.join(os.path.dirname(__file__), "default_ssp.txt"),
@@ -159,7 +159,17 @@ class SSPTable:
         metallicities = self._clamp_value(metallicities, self._metallicities)
         ages = self._clamp_value(ages, self._ages)
 
-        return interpolate2d(metallicities, ages, self._metallicities, self._ages, self._magnitudes[band])
+        nan_mask = np.isnan(metallicities) | np.isnan(ages)
+
+        ages[nan_mask ] = self._ages[0]
+        metallicities[nan_mask] = self._metallicities[0]
+
+        interpolator = RegularGridInterpolator((self._ages, self._metallicities), self._magnitudes[band].T,
+                                               method='linear', bounds_error=False, fill_value=np.nan)
+        result = interpolator(np.array([ages, metallicities]).T)
+        result[nan_mask] = np.nan
+
+        return result
 
     def __call__(self, snapshot, band):
         """Interpolate the magnitude for a given snapshot and bandpass
@@ -256,8 +266,8 @@ class SSPTable:
     @classmethod
     def _clamp_value(cls, value, values):
         value = np.atleast_1d(value)
-        value[value < np.min(values)] = np.min(values)
-        value[value > np.max(values)] = np.max(values)
+        value[value <= np.min(values)] = np.nextafter(np.min(values), np.inf)
+        value[value >= np.max(values)] = np.nextafter(np.max(values), -np.inf)
         return value
 
 class MultiSSPTable(SSPTable):
